@@ -1,10 +1,8 @@
 package com.eaglerhub.injector;
 
 import java.io.File;
-import java.io.IOException;
-import java.net.URLClassLoader;
-import java.util.Iterator;
 import java.util.ServiceLoader;
+import java.net.URLClassLoader;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -17,11 +15,18 @@ public class InjectorMain {
             JarLoader jarLoader = new JarLoader(chromeDir);
             URLClassLoader loader = jarLoader.createCombinedLoader();
 
-            // Perf controller
-            PerfController perf = new PerfController();
+            // Perf controller writes metrics/profile to ./runtime
+            PerfController perf = new PerfController(new File("runtime"));
 
             // Set context classloader so other code can find classes/resources
             Thread.currentThread().setContextClassLoader(loader);
+
+            // Start local control server (optional)
+            try {
+                LocalControlServer lcs = new LocalControlServer(9091);
+            } catch (Throwable t) {
+                log.info("Local control server not available: " + t);
+            }
 
             // Load Java mods via ServiceLoader (mods must provide META-INF/services/...)
             ServiceLoader<Mod> mods = ServiceLoader.load(Mod.class, loader);
