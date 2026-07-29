@@ -26,14 +26,38 @@ public class CustomResourceHandler implements HttpHandler {
         this.customDir = customDir;
     }
 
+    private void addCorsHeaders(Headers h, String origin) {
+        if (origin == null || origin.isEmpty()) {
+            h.set("Access-Control-Allow-Origin", "*");
+        } else {
+            h.set("Access-Control-Allow-Origin", origin);
+        }
+        h.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        h.set("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With");
+        h.set("Access-Control-Max-Age", "3600");
+        // If your clients use credentials (cookies), enable the following and ensure you echo the origin rather than using '*'
+        // h.set("Access-Control-Allow-Credentials", "true");
+    }
+
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        // Handle CORS preflight
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            Headers h = exchange.getResponseHeaders();
+            String origin = exchange.getRequestHeaders().getFirst("Origin");
+            addCorsHeaders(h, origin);
+            exchange.sendResponseHeaders(204, -1);
+            return;
+        }
+
         String raw = exchange.getRequestURI().getPath();
         String prefix = "/custom";
         String rel = raw.startsWith(prefix) ? raw.substring(prefix.length()) : raw;
         // normalize
         rel = rel.replaceAll("^/+", "");
         if (rel.contains("..")) {
+            Headers h = exchange.getResponseHeaders();
+            addCorsHeaders(h, exchange.getRequestHeaders().getFirst("Origin"));
             exchange.sendResponseHeaders(403, -1);
             return;
         }
@@ -43,6 +67,8 @@ public class CustomResourceHandler implements HttpHandler {
         if (f.exists() && f.isFile()) {
             byte[] data = Files.readAllBytes(f.toPath());
             Headers h = exchange.getResponseHeaders();
+            String origin = exchange.getRequestHeaders().getFirst("Origin");
+            addCorsHeaders(h, origin);
             h.set("Content-Type", guessContentType(f.getName()));
             exchange.sendResponseHeaders(200, data.length);
             try (OutputStream os = exchange.getResponseBody()) {
@@ -64,6 +90,8 @@ public class CustomResourceHandler implements HttpHandler {
                 try (InputStream in = res.openStream()) {
                     byte[] data = in.readAllBytes();
                     Headers h = exchange.getResponseHeaders();
+                    String origin = exchange.getRequestHeaders().getFirst("Origin");
+                    addCorsHeaders(h, origin);
                     h.set("Content-Type", guessContentType(entryName));
                     exchange.sendResponseHeaders(200, data.length);
                     try (OutputStream os = exchange.getResponseBody()) {
@@ -74,6 +102,8 @@ public class CustomResourceHandler implements HttpHandler {
             }
         }
 
+        Headers h = exchange.getResponseHeaders();
+        addCorsHeaders(h, exchange.getRequestHeaders().getFirst("Origin"));
         exchange.sendResponseHeaders(404, -1);
     }
 
